@@ -24,7 +24,12 @@
     "ExecutableTarget": {
       "type": "string",
       "enum": [
-        "Check"
+        "Check",
+        "Clean",
+        "Compile",
+        "Pack",
+        "Release",
+        "Restore"
       ]
     },
     "Verbosity": {
@@ -98,6 +103,10 @@
   "allOf": [
     {
       "properties": {
+        "GITHUB_TOKEN": {
+          "type": "string",
+          "default": "Secrets must be entered via 'nuke :secrets [profile]'"
+        },
         "NewKey": {
           "type": "string",
           "default": "Secrets must be entered via 'nuke :secrets [profile]'"
