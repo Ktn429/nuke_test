@@ -7,6 +7,12 @@
     <Nullable>enable</Nullable>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <Version>1.0.1</Version>
+    <PackageId>nuke_test</PackageId>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinecraftLaunch" Version="4.0.6-preview17" />
+  </ItemGroup>
 
 </Project>

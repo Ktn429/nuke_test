@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="build/_build.csproj" />
   <Project Path="nuke_test/nuke_test.csproj" />
 </Solution>
