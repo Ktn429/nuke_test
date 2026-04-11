@@ -6,8 +6,9 @@ using Serilog;
 using System;
 using System.Numerics;
 
-[GitHubActions("continuous", 
+[GitHubActions("continuous",
     GitHubActionsImage.UbuntuLatest,
+    AutoGenerate = false,
     On = new[] { GitHubActionsTrigger.Push },
     ImportSecrets = new[] { nameof(NewKey) },
     InvokedTargets = new[] { nameof(Check) })]
