@@ -1,15 +1,20 @@
 using Nuke.Common;
+using Nuke.Common.ChangeLog;
 using Nuke.Common.CI.GitHubActions;
+using Nuke.Common.Git;
 using Nuke.Common.IO;
 using Nuke.Common.ProjectModel;
 using Nuke.Common.Tools.DotNet;
 using Nuke.Common.Tools.Git;
 using Nuke.Common.Tools.GitHub;
+using Nuke.Common.Tools.GitReleaseManager;
 using Nuke.Common.Tools.NuGet;
 using Octokit;
 using Serilog;
+using System;
 using System.IO;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
+using static Nuke.Common.Tools.GitReleaseManager.GitReleaseManagerTasks;
 
 [GitHubActions("continuous",
     GitHubActionsImage.UbuntuLatest,
@@ -25,7 +30,7 @@ class Build : NukeBuild {
     [Parameter, Secret] private string GITHUB_TOKEN;
     [Solution] readonly Solution Solution;
 
-    AbsolutePath OutputDirectory => RootDirectory / "artifacts";
+    private AbsolutePath OutputDirectory => RootDirectory / "artifacts";
 
     Target Check => _ => _
         .OnlyWhenDynamic(() => IsServerBuild)
@@ -63,37 +68,47 @@ class Build : NukeBuild {
                 .SetOutputDirectory(OutputDirectory)
                 .EnableNoBuild());
         });
-
+    [GitRepository] readonly GitRepository Repository;
     Target Release => _ => _
         .DependsOn(Pack)
         .OnlyWhenDynamic(() => IsServerBuild)
         .Executes(async () => {
-            var client = new GitHubClient(new ProductHeaderValue("nuke")) {
-                Credentials = new Credentials(GITHUB_TOKEN)
-            };
 
             var owner = "YangSpring429";
             var repo = "nuke_test";
-            var version = "v1.0.0"; // 你可以换成自动版本号
+            var version = $"{Solution.GetProject("nuke_test").GetProperty("Version")}";
 
-            // 1. 创建 Release
-            var newRelease = new NewRelease(version) {
-                Name = version,
-                Draft = false,
-                Prerelease = false
-            };
+            // 1. 创建草稿 Release（自动生成 Release Notes）
+            GitReleaseManagerCreate(s => s
+                .SetRepositoryOwner(owner)
+                .SetRepositoryName(repo)
+                .SetName(version)
+                .SetToken(GITHUB_TOKEN)
+                .SetPrerelease(version.Contains("pre", StringComparison.InvariantCultureIgnoreCase))
+            );
 
-            var release = await client.Repository.Release.Create(owner, repo, newRelease);
+            // 2. 上传构建产物
+            GitReleaseManagerAddAssets(s => s
+                .SetRepositoryOwner(owner)
+                .SetRepositoryName(repo)
+                .SetTagName(version)
+                .SetAssetPaths(OutputDirectory / "*.nupkg")
+                .SetToken(GITHUB_TOKEN)
+            );
 
-            // 2. 上传 artifacts 目录下的所有文件
-            foreach (var file in OutputDirectory.GlobFiles("*.nupkg")) {
-                await client.Repository.Release.UploadAsset(
-                    release,
-                    new ReleaseAssetUpload {
-                        FileName = file.Name,
-                        ContentType = "application/octet-stream",
-                        RawData = File.OpenRead(file)
-                    });
-            }
+            // 3. 发布 Release
+            GitReleaseManagerPublish(s => s
+                .SetRepositoryOwner(owner)
+                .SetRepositoryName(repo)
+                .SetTagName(version)
+                .SetToken(GITHUB_TOKEN)
+            );
+
+            // 4. 关闭 milestone（可选）
+            GitReleaseManagerClose(s => s
+                .SetRepositoryOwner(owner)
+                .SetRepositoryName(repo)
+                .SetToken(GITHUB_TOKEN)
+            );
         });
 }
