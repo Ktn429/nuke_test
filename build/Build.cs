@@ -4,6 +4,7 @@ using Nuke.Common.CI.GitHubActions;
 using Nuke.Common.Git;
 using Nuke.Common.IO;
 using Nuke.Common.ProjectModel;
+using Nuke.Common.Tooling;
 using Nuke.Common.Tools.DotNet;
 using Nuke.Common.Tools.Git;
 using Nuke.Common.Tools.GitHub;
@@ -68,7 +69,7 @@ class Build : NukeBuild {
                 .SetOutputDirectory(OutputDirectory)
                 .EnableNoBuild());
         });
-    [GitRepository] readonly GitRepository Repository;
+
     Target Release => _ => _
         .DependsOn(Pack)
         .OnlyWhenDynamic(() => IsServerBuild)
