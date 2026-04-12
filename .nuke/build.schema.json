@@ -27,8 +27,8 @@
         "Check",
         "Clean",
         "Compile",
+        "CreateGitHubRelease",
         "Pack",
-        "Release",
         "Restore"
       ]
     },
@@ -103,9 +103,20 @@
   "allOf": [
     {
       "properties": {
-        "GITHUB_TOKEN": {
+        "Configuration": {
+          "type": "string",
+          "enum": [
+            "Debug",
+            "Release"
+          ]
+        },
+        "GitHubReleaseGitHubToken": {
           "type": "string",
           "default": "Secrets must be entered via 'nuke :secrets [profile]'"
+        },
+        "IgnoreFailedSources": {
+          "type": "boolean",
+          "description": "Ignore unreachable sources during Restore"
         },
         "NewKey": {
           "type": "string",

@@ -1,115 +1,86 @@
 using Nuke.Common;
-using Nuke.Common.ChangeLog;
 using Nuke.Common.CI.GitHubActions;
-using Nuke.Common.Git;
 using Nuke.Common.IO;
 using Nuke.Common.ProjectModel;
-using Nuke.Common.Tooling;
 using Nuke.Common.Tools.DotNet;
-using Nuke.Common.Tools.Git;
-using Nuke.Common.Tools.GitHub;
-using Nuke.Common.Tools.GitReleaseManager;
 using Nuke.Common.Tools.NuGet;
+using Nuke.Components;
 using Octokit;
 using Serilog;
 using System;
-using System.IO;
+using System.Collections.Generic;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
-using static Nuke.Common.Tools.GitReleaseManager.GitReleaseManagerTasks;
 
 [GitHubActions("continuous",
     GitHubActionsImage.UbuntuLatest,
     AutoGenerate = false,
+    PublishArtifacts = true,
     EnableGitHubToken = true,
     On = new[] { GitHubActionsTrigger.Push },
     ImportSecrets = new[] { nameof(NewKey) },
     InvokedTargets = new[] { nameof(Release) })]
-class Build : NukeBuild {
-    public static int Main() => Execute<Build>(x => x.Release);
-
+class Build : NukeBuild, IHazSolution, IPack, ICompile, IRestore, ICreateGitHubRelease {
     [Parameter, Secret] private string NewKey;
-    [Parameter, Secret] private string GITHUB_TOKEN;
-    [Solution] readonly Solution Solution;
+
+    [Solution(GenerateProjects = true)] readonly Solution Solution;
+    Nuke.Common.ProjectModel.Solution IHazSolution.Solution => Solution;
+
+    IEnumerable<AbsolutePath> NuGetPackageFiles
+            => From<IPack>().PackagesDirectory.GlobFiles("*.nupkg");
 
     private AbsolutePath OutputDirectory => RootDirectory / "artifacts";
 
-    Target Check => _ => _
-        .OnlyWhenDynamic(() => IsServerBuild)
-        .Executes(() => {
-            Log.Information("is match: {value}", NewKey.Equals("hellonuke"));
-        });
+    string ICreateGitHubRelease.Name => Solution.nuke_test.GetProperty("Version");
+    bool ICreateGitHubRelease.Prerelease => Solution.nuke_test.GetProperty("Version").Contains("pre", StringComparison.OrdinalIgnoreCase);
+
+    IEnumerable<AbsolutePath> ICreateGitHubRelease.AssetFiles => NuGetPackageFiles;
+
+    public static int Main() => Execute<Build>(x => ((IPack)x).Pack);
+
+    private T From<T>() where T : INukeBuild
+        => (T)(object)this;
+
+    public Target Check => _ => _
+       .OnlyWhenDynamic(() => IsServerBuild)
+       .Executes(() => {
+           Log.Information("is match: {value}", NewKey.Equals("hellonuke"));
+       });
 
     Target Clean => _ => _
         .DependsOn(Check)
         .Executes(() => {
             OutputDirectory.CreateOrCleanDirectory();
+            Log.Information("clear over!");
         });
 
-    Target Restore => _ => _
+    Target IRestore.Restore => _ => _
         .DependsOn(Clean)
         .Executes(() => {
             DotNetRestore(s => s.SetProjectFile(Solution));
         });
 
-    Target Compile => _ => _
-        .DependsOn(Restore)
+    Target ICompile.Compile => _ => _
+        .TryDependsOn<IRestore>()
         .Executes(() => {
-            DotNetBuild(s => s
-                .SetProjectFile(Solution)
-                .SetConfiguration("Release")
+            DotNetPublish(s => s
+                .SetProject(Solution.nuke_test)
+                .SetConfiguration(Configuration.Release)
+                .SetOutput(OutputDirectory)
                 .EnableNoRestore());
         });
 
-    Target Pack => _ => _
-        .DependsOn(Compile)
+    Target IPack.Pack => _ => _
+        .TryDependsOn<ICompile>()
+        .TryTriggers<ICreateGitHubRelease>()
         .Executes(() => {
-            DotNetPack(s => s
-                .SetProject(Solution)
-                .SetConfiguration("Release")
+            DotNetPack(x => x
+                .SetProject(Solution.nuke_test)
+                .SetConfiguration(Configuration.Release)
                 .SetOutputDirectory(OutputDirectory)
                 .EnableNoBuild());
         });
 
-    Target Release => _ => _
-        .DependsOn(Pack)
-        .OnlyWhenDynamic(() => IsServerBuild)
-        .Executes(async () => {
-
-            var owner = "YangSpring429";
-            var repo = "nuke_test";
-            var version = $"{Solution.GetProject("nuke_test").GetProperty("Version")}";
-
-            // 1. 创建草稿 Release（自动生成 Release Notes）
-            GitReleaseManagerCreate(s => s
-                .SetRepositoryOwner(owner)
-                .SetRepositoryName(repo)
-                .SetName(version)
-                .SetToken(GITHUB_TOKEN)
-                .SetPrerelease(version.Contains("pre", StringComparison.InvariantCultureIgnoreCase))
-            );
-
-            // 2. 上传构建产物
-            GitReleaseManagerAddAssets(s => s
-                .SetRepositoryOwner(owner)
-                .SetRepositoryName(repo)
-                .SetTagName(version)
-                .SetAssetPaths(OutputDirectory / "*.nupkg")
-                .SetToken(GITHUB_TOKEN)
-            );
-
-            // 3. 发布 Release
-            GitReleaseManagerPublish(s => s
-                .SetRepositoryOwner(owner)
-                .SetRepositoryName(repo)
-                .SetTagName(version)
-                .SetToken(GITHUB_TOKEN)
-            );
-
-            // 4. 关闭 milestone（可选）
-            GitReleaseManagerClose(s => s
-                .SetRepositoryOwner(owner)
-                .SetRepositoryName(repo)
-                .SetToken(GITHUB_TOKEN)
-            );
-        });
+    Target ICreateGitHubRelease.CreateGitHubRelease => _ => _
+        .Inherit<ICreateGitHubRelease>()
+        .OnlyWhenStatic(() => IsServerBuild);
 }
