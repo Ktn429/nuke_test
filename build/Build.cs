@@ -40,7 +40,7 @@ class Build : NukeBuild, IHazSolution, IPack, ICompile, IRestore, ICreateGitHubR
     private T From<T>() where T : INukeBuild
         => (T)(object)this;
 
-    public Target Check => _ => _
+    Target Check => _ => _
        .OnlyWhenDynamic(() => IsServerBuild)
        .Executes(() => {
            Log.Information("is match: {value}", NewKey.Equals("hellonuke"));
