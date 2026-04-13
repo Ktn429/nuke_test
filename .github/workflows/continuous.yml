@@ -31,6 +31,8 @@ jobs:
             .nuke/temp
             ~/.nuget/packages
           key: ${{ runner.os }}-${{ hashFiles('**/global.json', '**/*.csproj', '**/Directory.Packages.props') }}
+      - name: 'Check permission'
+        run: stat -c "%a %n" build.cmd
       - name: 'Run: Pack'
         run: ./build.cmd Pack
         env:
