@@ -62,10 +62,10 @@ public class Build : NukeBuild {
 
      Target PackLinux => _ => _
          .DependsOn(InstallTool)
-         .Executes(() =>
-         {
-             
-         });
+         .Partition(2)
+         .Executes(
+             () => AppImage(DotNetRuntimeIdentifier.linux_arm).AssertWaitForExit(),
+             () => AppImage(DotNetRuntimeIdentifier.linux_arm64).AssertWaitForExit());
 
      Target Finish => _ => _ 
          .DependsOn(PublishWindows, PublishMacOS, PackLinux)
@@ -82,5 +82,10 @@ public class Build : NukeBuild {
              .SetOutput(OutputDirectory / runtime)
              .SetProject(Solution.nuke_test_avalonia)
              .SetConfiguration(Configuration));
+     }
+
+     private IProcess AppImage(string runtime) {
+         var fileName = $"WonderLab_{runtime}.AppImage";
+         return ProcessTasks.StartShell($"pupnet -y -k appimage -r {runtime} -j {Solution.nuke_test_avalonia.Path} -o {OutputDirectory / fileName}");
      }
 }// Clean → Restore → Publish → ZipArtifacts → CreateGitHubRelease
