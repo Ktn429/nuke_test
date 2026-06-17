@@ -19,7 +19,6 @@
       
       <PackageReference Include="DotnetPackaging.Dmg" Version="10.1.36" />
       <PackageReference Include="DotnetPackaging.AppImage" Version="10.1.36" />
-      <PackageReference Include="Zafiro.FileSystem" Version="41.2.12" />
   </ItemGroup>
 
   <ItemGroup>
