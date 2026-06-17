@@ -37,7 +37,7 @@ public class Build : NukeBuild {
         .DependsOn(Clean)
         .Executes(() => {
             DotNetRestore(s => s
-                .SetProjectFile(Solution.nuke_test_avalonia));
+                .SetProjectFile(Solution));
         });
     
      Target PublishWindows => _ => _
