@@ -26,6 +26,7 @@
       "enum": [
         "Clean",
         "CreateGitHubRelease",
+        "Finish",
         "InstallTool",
         "PackLinux",
         "PackMacOS",

@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Nuke.Common;
 using Nuke.Common.CI.GitHubActions;
+using Nuke.Common.Git;
 using Nuke.Common.IO;
 using Nuke.Common.ProjectModel;
 using Nuke.Common.Tooling;
@@ -21,18 +22,20 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
     PublishArtifacts = true,
     EnableGitHubToken = true,
     On = [GitHubActionsTrigger.Push],
-    InvokedTargets = [nameof(ICreateGitHubRelease.CreateGitHubRelease)])]
+    InvokedTargets = [nameof(Finish)])]
 public class Build : NukeBuild, ICreateGitHubRelease {
     [Solution(GenerateProjects = true)] Solution Solution;
     
+    GitRepository IHazGitRepository.GitRepository => From<IHazGitRepository>().GitRepository;
+    
     private readonly AbsolutePath OutputDirectory = RootDirectory / "artifacts";
     private readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
-
+    
     public bool PreRelease => Configuration == Configuration.Debug;
     public string Name => $"AutoBuild-{Configuration}-{Solution.nuke_test_avalonia.GetProperty("Version")}";
     public IEnumerable<AbsolutePath> AssetFiles => OutputDirectory.GetFiles();
     
-    public static int Main() => Execute<Build>(x => ((ICreateGitHubRelease)x).CreateGitHubRelease);
+    public static int Main() => Execute<Build>(x => x.Finish);
 
     Target Clean => _ => _
         .Executes(() => {
@@ -94,18 +97,18 @@ public class Build : NukeBuild, ICreateGitHubRelease {
          .Executes(
              () => AppBundle("osx-arm64"),
              () => AppBundle(DotNetRuntimeIdentifier.osx_x64));
-
+     
      Target ICreateGitHubRelease.CreateGitHubRelease => _ => _
          .Inherit<ICreateGitHubRelease>()
-         .WhenSkipped(DependencyBehavior.Skip)
+         .ProceedAfterFailure()
          .DependsOn(PackWindows, PackLinux, PackMacOS)
          .OnlyWhenStatic(() => IsServerBuild);
 
-     // Target Finish => _ => _ 
-     //     .DependsOn(PackWindows, PackLinux, PackMacOS)
-     //     .Executes(() => {
-     //         Log.Information("Finish");
-     //     });
+     Target Finish => _ => _ 
+         .TryDependsOn<ICreateGitHubRelease>()
+         .Executes(() => {
+             Log.Information("Finish");
+         });
 
      private void Publish(string runtime) {
          Log.Information("Publishing {Runtime}", runtime);
@@ -162,7 +165,9 @@ public class Build : NukeBuild, ICreateGitHubRelease {
              .SetIcon(Solution.nuke_test_avalonia.Directory / "Assets" / "icon.icns")
              .EnableHighResolutionCapable());
      }
-    
+     
+     T From<T>() where T : INukeBuild =>
+         (T)(object)this;
 }// Clean → Restore → Publish → ZipArtifacts → CreateGitHubRelease
 
 [Command(
