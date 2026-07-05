@@ -26,7 +26,7 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 public class Build : NukeBuild, ICreateGitHubRelease {
     [Solution(GenerateProjects = true)] Solution Solution;
 
-    public GitRepository GitRepository => From<IHazGitRepository>().GitRepository;
+    // public GitRepository GitRepository => From<IHazGitRepository>().GitRepository;
     
     private readonly AbsolutePath OutputDirectory = RootDirectory / "artifacts";
     private readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
