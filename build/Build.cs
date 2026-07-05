@@ -91,6 +91,7 @@ public class Build : NukeBuild {
 
      Target PackMacOS => _ => _
          .DependsOn(InstallTool)
+         .OnlyWhenDynamic(OperatingSystem.IsMacOS)
          .Executes(
              () => AppBundle("osx-arm64"),
              () => AppBundle(DotNetRuntimeIdentifier.osx_x64));
