@@ -76,13 +76,10 @@ public interface ICreateRelease : INukeBuild {
                             Name = $"{Name}{suffix}",
                             Prerelease = !GitRepository.IsOnMainBranch(),
                             Draft = Draft,
-                            Body = ""//ChangelogTasks.ExtractChangelogSectionNotes(ChangelogFile).JoinNewLine()
+                            Body = ""
                         });
-
                 }
-                catch(Exception ex) {
-                    Log.Error(ex, "Failed to create release");
-                    
+                catch {
                     return await GitHubTasks.GitHubClient.Repository.Release.Get(
                         GitRepository.GetGitHubOwner(),
                         GitRepository.GetGitHubName(),
