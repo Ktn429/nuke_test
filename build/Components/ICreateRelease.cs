@@ -43,6 +43,7 @@ public interface ICreateRelease : INukeBuild {
                     RawData = assetFile
                 };
                 await GitHubTasks.GitHubClient.Repository.Release.UploadAsset(release, asset);
+                
                 Log.Information("{Name} uploaded successfully!", x.Name);
             }).ToArray();
             
@@ -50,6 +51,8 @@ public interface ICreateRelease : INukeBuild {
             return;
 
             async Task<Release> GetOrCreateRelease() {
+                var name = $"{Name}{suffix}";
+                
                 try {
                     if (!GitRepository.IsOnMainBranch()) {
                         var allTags = await GitHubTasks.GitHubClient.Repository.GetAllTags(
@@ -67,7 +70,6 @@ public interface ICreateRelease : INukeBuild {
                             : "-preview1";
                     }
 
-                    var name = $"{Name}{suffix}";
                     Log.Information("Creating {Name}...", name);
 
                     return await GitHubTasks.GitHubClient.Repository.Release.Create(
@@ -79,14 +81,11 @@ public interface ICreateRelease : INukeBuild {
                             Draft = Draft,
                             Body = ""
                         });
-                } catch (Exception ex) {
-                    Log.Error(ex, "Failed to create release!");
-                    throw;
-                } catch {
+                }  catch {
                     return await GitHubTasks.GitHubClient.Repository.Release.Get(
                         GitRepository.GetGitHubOwner(),
                         GitRepository.GetGitHubName(),
-                        Name);
+                        name);
                 }
             }
         });
