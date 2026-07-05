@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using Nuke.Common;
@@ -7,6 +8,7 @@ using Nuke.Common.IO;
 using Nuke.Common.ProjectModel;
 using Nuke.Common.Tooling;
 using Nuke.Common.Tools.DotNet;
+using Nuke.Components;
 using Serilog;
 using Tasks;
 using static Tasks.HachimiPackagingTasks;
@@ -19,27 +21,28 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
     PublishArtifacts = true,
     EnableGitHubToken = true,
     On = [GitHubActionsTrigger.Push],
-    InvokedTargets = [nameof(Finish)])]
-public class Build : NukeBuild {
+    InvokedTargets = [nameof(ICreateGitHubRelease.CreateGitHubRelease)])]
+public class Build : NukeBuild, ICreateGitHubRelease {
     [Solution(GenerateProjects = true)] Solution Solution;
     
     private readonly AbsolutePath OutputDirectory = RootDirectory / "artifacts";
     private readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
 
-    public static int Main() => Execute<Build>(x => x.Finish);
+    public bool PreRelease => Configuration == Configuration.Debug;
+    public string Name => $"AutoBuild-{Configuration}-{Solution.nuke_test_avalonia.GetProperty("Version")}";
+    public IEnumerable<AbsolutePath> AssetFiles => OutputDirectory.GetFiles();
+    
+    public static int Main() => Execute<Build>(x => ((ICreateGitHubRelease)x).CreateGitHubRelease);
 
     Target Clean => _ => _
         .Executes(() => {
+            foreach (var file in OutputDirectory.GetFiles()) {
+                Log.Information("Cleaning {File}", file);
+            }
+            
             OutputDirectory.CreateOrCleanDirectory();
             Log.Information("Clean up");
         });
-
-    // Target Restore => _ => _
-    //     .DependsOn(Clean)
-    //     .Executes(() => {
-    //         DotNetRestore(s => s
-    //             .SetProjectFile(Solution));
-    //     });
 
      Target PublishWindows => _ => _
          .DependsOn(Clean)
@@ -95,13 +98,19 @@ public class Build : NukeBuild {
          .Executes(
              () => AppBundle("osx-arm64"),
              () => AppBundle(DotNetRuntimeIdentifier.osx_x64));
-     
-     Target Finish => _ => _ 
+
+     Target ICreateGitHubRelease.CreateGitHubRelease => _ => _
+         .Inherit<ICreateGitHubRelease>()
+         .WhenSkipped(DependencyBehavior.Skip)
          .DependsOn(PackWindows, PackLinux, PackMacOS)
-         .Executes(() => {
-             Log.Information("Finish");
-         });
-     
+         .OnlyWhenStatic(() => IsServerBuild);
+
+     // Target Finish => _ => _ 
+     //     .DependsOn(PackWindows, PackLinux, PackMacOS)
+     //     .Executes(() => {
+     //         Log.Information("Finish");
+     //     });
+
      private void Publish(string runtime) {
          Log.Information("Publishing {Runtime}", runtime);
          DotNetPublish(s => s
@@ -157,6 +166,7 @@ public class Build : NukeBuild {
              .SetIcon(Solution.nuke_test_avalonia.Directory / "Assets" / "icon.icns")
              .EnableHighResolutionCapable());
      }
+    
 }// Clean → Restore → Publish → ZipArtifacts → CreateGitHubRelease
 
 [Command(

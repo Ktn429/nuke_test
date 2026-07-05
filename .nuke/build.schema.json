@@ -25,7 +25,7 @@
       "type": "string",
       "enum": [
         "Clean",
-        "Finish",
+        "CreateGitHubRelease",
         "InstallTool",
         "PackLinux",
         "PackMacOS",
@@ -106,6 +106,10 @@
   "allOf": [
     {
       "properties": {
+        "GitHubReleaseGitHubToken": {
+          "type": "string",
+          "default": "Secrets must be entered via 'nuke :secrets [profile]'"
+        },
         "Solution": {
           "type": "string",
           "description": "Path to a solution file that is automatically loaded"
