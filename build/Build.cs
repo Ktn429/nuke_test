@@ -9,7 +9,6 @@ using Nuke.Common.IO;
 using Nuke.Common.ProjectModel;
 using Nuke.Common.Tooling;
 using Nuke.Common.Tools.DotNet;
-using Nuke.Components;
 using Serilog;
 using Tasks;
 
@@ -30,8 +29,7 @@ public class Build : NukeBuild, ICreateRelease {
     private readonly AbsolutePath OutputDirectory = RootDirectory / "artifacts";
     private readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
     
-    public bool PreRelease => Configuration == Configuration.Debug;
-    public string Name => $"AutoBuild-{Configuration}-{Solution.nuke_test_avalonia.GetProperty("Version")}";
+    public string Name => $"v{Solution.nuke_test_avalonia.GetProperty("Version")}";
     public IEnumerable<AbsolutePath> AssetFiles => OutputDirectory.GetFiles();
     
     public static int Main() => Execute<Build>(x => x.Finish);
@@ -102,7 +100,7 @@ public class Build : NukeBuild, ICreateRelease {
      /// </summary>
      Target ICreateRelease.CreateGitHubRelease => _ => _
          .Inherit<ICreateRelease>()
-         .DependsOn(PackMacOS, PackWindows, PackWindows);
+         .DependsOn(PackMacOS, PackLinux, PackWindows);
      
      Target Finish => _ => _ 
          .TryDependsOn<ICreateRelease>()
@@ -165,9 +163,6 @@ public class Build : NukeBuild, ICreateRelease {
              .SetIcon(Solution.nuke_test_avalonia.Directory / "Assets" / "icon.icns")
              .EnableHighResolutionCapable());
      }
-     
-     T From<T>() where T : INukeBuild =>
-         (T)(object)this;
 }// Clean → Restore → Publish → ZipArtifacts → CreateGitHubRelease
 
 [Command(

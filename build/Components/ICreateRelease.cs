@@ -20,7 +20,7 @@ public interface ICreateRelease : INukeBuild {
     [Parameter] [Secret] string GitHubToken => TryGetValue(() => GitHubToken) ?? GitHubActions.Instance?.Token;
 
     string Name { get; }
-    bool Prerelease => false;
+    
     bool Draft => false;
 
     IEnumerable<AbsolutePath> AssetFiles { get; }
@@ -30,6 +30,8 @@ public interface ICreateRelease : INukeBuild {
         .Executes(async () => {
             GitHubTasks.GitHubClient.Credentials = new Credentials(GitHubToken.NotNull());
 
+            Log.Information("Starting create release...");
+            
             var release = await GetOrCreateRelease();
             var uploadTasks = AssetFiles.Select(async x => {
                 await using var assetFile = File.OpenRead(x);
@@ -39,6 +41,7 @@ public interface ICreateRelease : INukeBuild {
                     RawData = assetFile
                 };
                 await GitHubTasks.GitHubClient.Repository.Release.UploadAsset(release, asset);
+                Log.Information("{Name} uploaded successfully!", x.Name);
             }).ToArray();
 
             Task.WaitAll(uploadTasks);
@@ -46,13 +49,30 @@ public interface ICreateRelease : INukeBuild {
 
             async Task<Release> GetOrCreateRelease() {
                 try {
+                    var suffix = string.Empty;
+                    if (!GitRepository.IsOnMainBranch()) {
+                        var allTags = await GitHubTasks.GitHubClient.Repository.GetAllTags(
+                            GitRepository.GetGitHubOwner(),
+                            GitRepository.GetGitHubName());
+                        
+                        var firstPreTag = allTags
+                            .FirstOrDefault(tag => tag.Name.Contains("preview", StringComparison.OrdinalIgnoreCase))?
+                            .Name
+                            .Split("preview");
+
+                        var newPreTagNumber = Convert.ToInt32(firstPreTag?[1]) + 1;
+                        suffix = $"v{firstPreTag?[0]}".Equals(Name, StringComparison.OrdinalIgnoreCase) 
+                            ? $"-preview{newPreTagNumber}" 
+                            : "-preview1";
+                    }
+                    
                     return await GitHubTasks.GitHubClient.Repository.Release.Create(
                         GitRepository.GetGitHubOwner(),
                         GitRepository.GetGitHubName(),
                         new NewRelease(Name)
                         {
-                            Name = Name,
-                            Prerelease = Prerelease,
+                            Name = $"{Name}{suffix}",
+                            Prerelease = !GitRepository.IsOnMainBranch(),
                             Draft = Draft,
                             Body = ""//ChangelogTasks.ExtractChangelogSectionNotes(ChangelogFile).JoinNewLine()
                         });
