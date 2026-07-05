@@ -30,6 +30,10 @@ public partial interface ICreateRelease : INukeBuild {
     Target CreateGitHubRelease => _ => _
         .Requires(() => GitHubToken)
         .Executes(async () => {
+            foreach (var directory in RootDirectory.GetDirectories(depth: 2)) {
+                Log.Information("Creating {Name}...", directory);
+            }
+            
             GitHubTasks.GitHubClient.Credentials = new Credentials(GitHubToken.NotNull());
             Log.Information("Starting create release...");
             
