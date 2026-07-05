@@ -35,6 +35,11 @@ jobs:
         run: ./build.cmd Finish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 'Publish: artifacts'
+        uses: actions/upload-artifact@v5
+        with:
+          name: artifacts
+          path: artifacts
   ubuntu-latest:
     name: ubuntu-latest
     runs-on: ubuntu-latest
@@ -51,3 +56,8 @@ jobs:
         run: ./build.cmd Finish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 'Publish: artifacts'
+        uses: actions/upload-artifact@v5
+        with:
+          name: artifacts
+          path: artifacts

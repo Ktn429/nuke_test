@@ -76,6 +76,7 @@ public class Build : NukeBuild, ICreateRelease {
 
      Target PackWindows => _ => _
          .DependsOn(InstallTool)
+         .Produces(OutputDirectory / "*.zip")
          .OnlyWhenDynamic(OperatingSystem.IsLinux)
          .Executes(
              () => Zip(DotNetRuntimeIdentifier.win_x64),
@@ -84,6 +85,7 @@ public class Build : NukeBuild, ICreateRelease {
      
      Target PackLinux => _ => _
          .DependsOn(InstallTool)
+         .Produces(OutputDirectory / "*.AppImage")
          .OnlyWhenDynamic(OperatingSystem.IsLinux)
          .Executes(
              () => AppImage(DotNetRuntimeIdentifier.linux_x64),
@@ -92,6 +94,7 @@ public class Build : NukeBuild, ICreateRelease {
 
      Target PackMacOS => _ => _
          .DependsOn(InstallTool)
+         .Produces(OutputDirectory / "*.zip")
          .OnlyWhenDynamic(OperatingSystem.IsMacOS)
          .Executes(
              () => AppBundle("osx-arm64"),
