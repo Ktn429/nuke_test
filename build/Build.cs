@@ -131,6 +131,8 @@ public class Build : NukeBuild, ICreateRelease {
              .SetSourceDirectory(OutputDirectory / runtime)
              .SetOutputFile(OutputDirectory / $"{FileNameFormat}-{runtime}.zip")
              .SetRuntime(runtime));
+
+         (OutputDirectory / runtime).DeleteDirectory();
      }
 
      private void AppImage(string runtime) {
@@ -150,6 +152,8 @@ public class Build : NukeBuild, ICreateRelease {
              .SetIcon(Solution.nuke_test_avalonia.Directory / "Assets" / "icon.png")
              .SetArchitecture(arch)
              .DisableTerminal());
+         
+         (OutputDirectory / runtime).DeleteDirectory();
      }
 
      private void AppBundle(string runtime) {
@@ -163,6 +167,8 @@ public class Build : NukeBuild, ICreateRelease {
              .SetPrincipalClass("NSApplication")
              .SetIcon(Solution.nuke_test_avalonia.Directory / "Assets" / "icon.icns")
              .EnableHighResolutionCapable());
+         
+         (OutputDirectory / runtime).DeleteDirectory();
      }
 }// Clean → Restore → Publish → ZipArtifacts → CreateGitHubRelease
 
