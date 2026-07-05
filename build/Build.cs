@@ -75,6 +75,7 @@ public class Build : NukeBuild {
 
      Target PackWindows => _ => _
          .DependsOn(InstallTool)
+         .OnlyWhenDynamic(OperatingSystem.IsLinux)
          .Executes(
              () => Zip(DotNetRuntimeIdentifier.win_x64),
              () => Zip(DotNetRuntimeIdentifier.win_x86),
@@ -82,6 +83,7 @@ public class Build : NukeBuild {
      
      Target PackLinux => _ => _
          .DependsOn(InstallTool)
+         .OnlyWhenDynamic(OperatingSystem.IsLinux)
          .Executes(
              () => AppImage(DotNetRuntimeIdentifier.linux_x64),
              () => AppImage(DotNetRuntimeIdentifier.linux_arm),
