@@ -18,8 +18,4 @@
       <PackageReference Include="GitReleaseManager" Version="0.16.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Tasks\" />
-  </ItemGroup>
-
 </Project>

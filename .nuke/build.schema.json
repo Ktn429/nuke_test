@@ -28,10 +28,11 @@
         "Finish",
         "InstallTool",
         "PackLinux",
+        "PackMacOS",
+        "PackWindows",
         "PublishLinux",
         "PublishMacOS",
-        "PublishWindows",
-        "Restore"
+        "PublishWindows"
       ]
     },
     "Verbosity": {

@@ -363,3 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 /.idea
 /.idea
+.nuke/temp/execution-plan.html
