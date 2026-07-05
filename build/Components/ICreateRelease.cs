@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Nuke.Common;
 using Nuke.Common.CI.GitHubActions;
@@ -13,7 +14,7 @@ using Serilog;
 
 namespace Components;
 
-public interface ICreateRelease : INukeBuild {
+public partial interface ICreateRelease : INukeBuild {
     public const string GitHubRelease = nameof(GitHubRelease);
 
     [GitRepository] [Required] GitRepository GitRepository => TryGetValue(() => GitRepository);
@@ -32,61 +33,78 @@ public interface ICreateRelease : INukeBuild {
             GitHubTasks.GitHubClient.Credentials = new Credentials(GitHubToken.NotNull());
             Log.Information("Starting create release...");
             
-            var suffix = string.Empty;
-            var release = await GetOrCreateRelease();
-            
-            var uploadTasks = AssetFiles.Select(async x => {
-                await using var assetFile = File.OpenRead(x);
-                var asset = new ReleaseAssetUpload { 
-                    FileName = string.Format(x.Name, $"{Name}{suffix}"), 
-                    ContentType = "application/octet-stream", 
-                    RawData = assetFile
-                };
-                await GitHubTasks.GitHubClient.Repository.Release.UploadAsset(release, asset);
-                
-                Log.Information("{Name} uploaded successfully!", x.Name);
-            }).ToArray();
-            
-            Task.WaitAll(uploadTasks);
+            var releaseName = await GetReleaseNameAsync();
+            var release = await GetOrCreateReleaseAsync(releaseName);
+
+            await Task.WhenAll(AssetFiles.Select(async file => {
+                await using var stream = File.OpenRead(file);
+        
+                var fileName = string.Format(file.Name, releaseName);
+        
+                await GitHubTasks.GitHubClient.Repository.Release.UploadAsset(
+                    release,
+                    new ReleaseAssetUpload {
+                        FileName = fileName,
+                        ContentType = "application/octet-stream",
+                        RawData = stream
+                    });
+        
+                Log.Information("{Name} uploaded successfully!", fileName);
+            }));
+
             return;
+        
+            async Task<string> GetReleaseNameAsync() {
+                if (GitRepository.IsOnMainBranch())
+                    return Name;
+        
+                var tags = await GitHubTasks.GitHubClient.Repository.GetAllTags(
+                    GitRepository.GetGitHubOwner(),
+                    GitRepository.GetGitHubName());
+        
+                var nextPreview = tags
+                    .Where(x => x.Name.StartsWith($"{Name}-preview", StringComparison.OrdinalIgnoreCase))
+                    .Select(x => {
+                        var match = SuffixRegex().Match(x.Name);
+                        return match.Success
+                            ? int.Parse(match.Groups[1].Value)
+                            : 0;
+                    })
+                    .DefaultIfEmpty()
+                    .Max() + 1;
+        
+                return $"{Name}-preview{nextPreview}"; 
+            }
 
-            async Task<Release> GetOrCreateRelease() {
-                var name = $"{Name}{suffix}";
-                
+            async Task<Release> GetOrCreateReleaseAsync(string releaseName) {
                 try {
-                    if (!GitRepository.IsOnMainBranch()) {
-                        var allTags = await GitHubTasks.GitHubClient.Repository.GetAllTags(
-                            GitRepository.GetGitHubOwner(),
-                            GitRepository.GetGitHubName());
-
-                        var firstPreTag = allTags
-                            .FirstOrDefault(tag => tag.Name.Contains("preview", StringComparison.OrdinalIgnoreCase))?
-                            .Name
-                            .Split("preview");
-
-                        var newPreTagNumber = Convert.ToInt32(firstPreTag?[1]) + 1;
-                        suffix = firstPreTag != null && firstPreTag![0].Equals(Name, StringComparison.OrdinalIgnoreCase)
-                            ? $"-preview{newPreTagNumber}"
-                            : "-preview1";
-                    }
-
-                    Log.Information("Creating {Name}...", name);
-
+                    Log.Information("Creating {Name}...", releaseName);
+        
                     return await GitHubTasks.GitHubClient.Repository.Release.Create(
                         GitRepository.GetGitHubOwner(),
                         GitRepository.GetGitHubName(),
-                        new NewRelease(name) {
-                            Name = name,
-                            Prerelease = !GitRepository.IsOnMainBranch(),
+                        new NewRelease(releaseName) {
+                            Name = releaseName,
                             Draft = Draft,
+                            Prerelease = !GitRepository.IsOnMainBranch(),
                             Body = ""
                         });
-                }  catch {
+                }
+                catch (ApiValidationException ex)
+                    when (ex.ApiError?.Errors.Any(x =>
+                        x.Code == "already_exists" &&
+                        x.Field == "tag_name") == true)
+                {
+                    Log.Information("Release already exists, loading existing release...");
+        
                     return await GitHubTasks.GitHubClient.Repository.Release.Get(
                         GitRepository.GetGitHubOwner(),
                         GitRepository.GetGitHubName(),
-                        name);
+                        releaseName);
                 }
-            }
+            } 
         });
+    
+    [GeneratedRegex(@"preview(\d+)$")]
+    private static partial Regex SuffixRegex();
 }
