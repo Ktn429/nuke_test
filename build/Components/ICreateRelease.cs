@@ -55,29 +55,32 @@ public interface ICreateRelease : INukeBuild {
                         var allTags = await GitHubTasks.GitHubClient.Repository.GetAllTags(
                             GitRepository.GetGitHubOwner(),
                             GitRepository.GetGitHubName());
-                        
+
                         var firstPreTag = allTags
                             .FirstOrDefault(tag => tag.Name.Contains("preview", StringComparison.OrdinalIgnoreCase))?
                             .Name
                             .Split("preview");
 
                         var newPreTagNumber = Convert.ToInt32(firstPreTag?[1]) + 1;
-                        suffix = firstPreTag![0].Equals(Name, StringComparison.OrdinalIgnoreCase) 
-                            ? $"-preview{newPreTagNumber}" 
+                        suffix = firstPreTag![0].Equals(Name, StringComparison.OrdinalIgnoreCase)
+                            ? $"-preview{newPreTagNumber}"
                             : "-preview1";
                     }
 
                     var name = $"{Name}{suffix}";
+                    Log.Information("Creating {Name}...", name);
                     return await GitHubTasks.GitHubClient.Repository.Release.Create(
                         GitRepository.GetGitHubOwner(),
                         GitRepository.GetGitHubName(),
-                        new NewRelease(name)
-                        {
+                        new NewRelease(name) {
                             Name = name,
                             Prerelease = !GitRepository.IsOnMainBranch(),
                             Draft = Draft,
                             Body = ""
                         });
+                }
+                catch(Exception ex) {
+                    Log.Error(ex, "Failed to create release!");
                 }
                 catch {
                     return await GitHubTasks.GitHubClient.Repository.Release.Get(
