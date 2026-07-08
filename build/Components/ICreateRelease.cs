@@ -176,7 +176,7 @@ public partial interface ICreateRelease : INukeBuild {
             if (parts.Length != 3)
                 continue;
 
-            var type = CommitTypes.FirstOrDefault(parts[0].StartsWith) ?? "other";
+            var type = CommitTypes.FirstOrDefault(parts[1].StartsWith) ?? "other";
             yield return (type, $"- {parts[0]}: {CCRegex().Replace(parts[1], "").Trim()} (by {parts[2]})");
         }
     }
