@@ -2,12 +2,14 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Nuke.Common;
 using Nuke.Common.CI.GitHubActions;
 using Nuke.Common.Git;
 using Nuke.Common.IO;
+using Nuke.Common.Tools.Git;
 using Nuke.Common.Tools.GitHub;
 using Octokit;
 using Serilog;
@@ -15,13 +17,33 @@ using Serilog;
 namespace Components;
 
 public partial interface ICreateRelease : INukeBuild {
+    private static readonly string[] CommitTypes = [
+        "feat",
+        "fix",
+        "refactor",
+        "perf",
+        "chore",
+        "ci",
+        "release"
+    ];
+    
+    private static readonly (string Type, string Title)[] Sections = [
+        ("feat", "## ✨ Features"),
+        ("fix", "## 🐛 Bug Fixes"),
+        ("refactor", "## ♻️ Refactoring"),
+        ("perf", "## ⚡ Performance"),
+        ("chore", "## 🔧 Chores"),
+        ("ci", "## 🤖 CI"),
+        ("release", "## 🚀 Release"),
+        ("other", "## 📦 Other")
+    ];
+    
     public const string GitHubRelease = nameof(GitHubRelease);
 
     [GitRepository] [Required] GitRepository GitRepository => TryGetValue(() => GitRepository);
     [Parameter] [Secret] string GitHubToken => TryGetValue(() => GitHubToken) ?? GitHubActions.Instance?.Token;
 
     string Name { get; }
-    string FileNameFormat { get; }
     
     bool Draft => false;
 
@@ -30,16 +52,12 @@ public partial interface ICreateRelease : INukeBuild {
     Target CreateGitHubRelease => _ => _
         .Requires(() => GitHubToken)
         .Executes(async () => {
-            foreach (var directory in RootDirectory.GetDirectories(depth: 2)) {
-                Log.Information("Creating {Name}...", directory);
-            }
-            
             GitHubTasks.GitHubClient.Credentials = new Credentials(GitHubToken.NotNull());
             Log.Information("Starting create release...");
             
             var releaseName = await GetReleaseNameAsync();
             var release = await GetOrCreateReleaseAsync(releaseName);
-
+            
             await Task.WhenAll(AssetFiles.Select(async file => {
                 await using var stream = File.OpenRead(file);
         
@@ -55,7 +73,7 @@ public partial interface ICreateRelease : INukeBuild {
         
                 Log.Information("{Name} uploaded successfully!", fileName);
             }));
-
+            
             return;
         
             async Task<string> GetReleaseNameAsync() {
@@ -83,7 +101,9 @@ public partial interface ICreateRelease : INukeBuild {
             async Task<Release> GetOrCreateReleaseAsync(string releaseName) {
                 try {
                     Log.Information("Creating {Name}...", releaseName);
-        
+
+                    
+                    
                     return await GitHubTasks.GitHubClient.Repository.Release.Create(
                         GitRepository.GetGitHubOwner(),
                         GitRepository.GetGitHubName(),
@@ -91,14 +111,13 @@ public partial interface ICreateRelease : INukeBuild {
                             Name = releaseName,
                             Draft = Draft,
                             Prerelease = !GitRepository.IsOnMainBranch(),
-                            Body = ""
+                            Body = BuildLog()
                         });
                 }
                 catch (ApiValidationException ex)
                     when (ex.ApiError?.Errors.Any(x =>
                         x.Code == "already_exists" &&
-                        x.Field == "tag_name") == true)
-                {
+                        x.Field == "tag_name") == true) {
                     Log.Information("Release already exists, loading existing release...");
         
                     return await GitHubTasks.GitHubClient.Repository.Release.Get(
@@ -106,9 +125,65 @@ public partial interface ICreateRelease : INukeBuild {
                         GitRepository.GetGitHubName(),
                         releaseName);
                 }
-            } 
+            }
+
+            string BuildLog() {
+                var commitInfos = GetCommitInfos();
+                var groups = commitInfos
+                    .GroupBy(x => x.Item1)
+                    .ToDictionary(x => x.Key, x => x.Select(y => y.Item2).ToList());
+
+                var sb = new StringBuilder();
+
+                sb.AppendLine("## What's Changed");
+                sb.AppendLine();
+
+                foreach (var (type, title) in Sections) {
+                    if (!groups.TryGetValue(type, out var items) || items.Count == 0)
+                        continue;
+                    
+                    sb.AppendLine(title);
+
+                    foreach (var item in items)
+                        sb.AppendLine(item);
+
+                    sb.AppendLine();
+                }
+
+                return sb.ToString().TrimEnd();
+            }
         });
+    
+    private string GetPreviousTag() {
+        return GitTasks
+            .Git("rev-list -n 1 --tags=\"*\" HEAD")
+            .FirstOrDefault().Text;
+    }
+
+    private IEnumerable<(string, string)> GetCommitInfos() {
+        var previousTag = GetPreviousTag();
+
+        var range = previousTag is null
+            ? "HEAD"
+            : $"{previousTag}..HEAD";
+
+        var infos = GitTasks
+            .Git($"log {range} --pretty=format:\"%h|%s|@%an\"")
+            .Select(x => x.Text);
+
+        foreach (var info in infos) {
+            var parts = info.Split('|', 3);
+            if (parts.Length != 3)
+                continue;
+
+            var type = CommitTypes.FirstOrDefault(parts[0].StartsWith) ?? "other";
+            yield return (type, $"- {parts[0]}: {CCRegex().Replace(parts[1], "").Trim()} (by {parts[2]})");
+        }
+    }
     
     [GeneratedRegex(@"preview(\d+)$")]
     private static partial Regex SuffixRegex();
+    
+    [GeneratedRegex(@"^(feat|fix|refactor|perf|chore|ci|release)(\([^)]+\))?!?[:：][\s\u3000]*")]
+    private static partial Regex CCRegex();
 }
