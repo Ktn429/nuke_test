@@ -22,9 +22,20 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
+          
+      - name: Debug git
+        run: |
+          echo "=== tags ==="
+          git tag -l
 
-      - name: Fetch tags
-        run: git fetch --tags
+          echo "=== branches ==="
+          git branch -a
+
+          echo "=== log ==="
+          git log --oneline --decorate -20
+
+          echo "=== describe ==="
+          git describe --tags --abbrev=0 HEAD^ || true
         
       - name: Cache
         uses: actions/cache@v4
