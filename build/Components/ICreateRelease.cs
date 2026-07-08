@@ -154,13 +154,15 @@ public partial interface ICreateRelease : INukeBuild {
     
     private string GetPreviousTag() {
         return GitTasks
-            .Git($"rev-list -n 1 --tags=* HEAD")
+            .Git($"rev-list -n 1 --tags=* HEAD^1")
             .FirstOrDefault().Text;
     }
 
     private IEnumerable<(string, string)> GetCommitInfos() {
         var previousTag = GetPreviousTag();
 
+        Log.Information("Generate release notes from {Tag} to HEAD", previousTag);
+        
         var range = previousTag is null
             ? "HEAD"
             : $"{previousTag}..HEAD";
