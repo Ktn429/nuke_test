@@ -51,7 +51,6 @@ public partial interface ICreateRelease : INukeBuild {
 
     Target CreateGitHubRelease => _ => _
         .Requires(() => GitHubToken)
-        .OnlyWhenDynamic(HasNewCommit)
         .Executes(async () => {
             GitHubTasks.GitHubClient.Credentials = new Credentials(GitHubToken.NotNull());
             Log.Information("Starting create release...");
@@ -152,22 +151,6 @@ public partial interface ICreateRelease : INukeBuild {
                 return sb.ToString().TrimEnd();
             }
         });
-
-    private bool HasNewCommit() {
-        var latestTag = GitTasks
-            .Git("describe --tags --abbrev=0")
-            .FirstOrDefault().Text;
-
-        if (latestTag is null)
-            return true;
-
-        var commits = GitTasks
-            .Git($"rev-list {latestTag}..HEAD --count")
-            .First()
-            .Text;
-
-        return int.Parse(commits) > 0;
-    }
     
     private string GetPreviousTag() {
         return GitTasks
