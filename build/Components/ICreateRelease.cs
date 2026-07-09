@@ -51,6 +51,7 @@ public partial interface ICreateRelease : INukeBuild {
 
     Target CreateGitHubRelease => _ => _
         .Requires(() => GitHubToken)
+        .OnlyWhenDynamic(ShouldRelease)
         .Executes(async () => {
             GitHubTasks.GitHubClient.Credentials = new Credentials(GitHubToken.NotNull());
             Log.Information("Starting create release...");
@@ -151,6 +152,15 @@ public partial interface ICreateRelease : INukeBuild {
                 return sb.ToString().TrimEnd();
             }
         });
+    
+    private bool ShouldRelease() {
+        var commits = GetCommitInfos();
+
+        return commits.Any(x =>
+            CommitTypes.Contains(x.Item1) &&
+            x.Item1 != "chore" &&
+            x.Item1 != "ci");
+    }
     
     private string GetPreviousTag() {
         return GitTasks
