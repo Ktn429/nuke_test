@@ -6,6 +6,7 @@ on:
       - continuous
     types:
       - completed
+  workflow_dispatch:
 
 permissions:
   contents: write
